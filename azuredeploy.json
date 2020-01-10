@@ -1,0 +1,280 @@
+{
+    "$schema": "https://schema.management.azure.com/schemas/2019-04-01/deploymentTemplate.json#",
+    "contentVersion": "1.0.0.0",
+    "parameters": {
+        "apiManagementPrefix": {
+            "type": "string",
+            "defaultValue": "apim-"
+        },
+        "vnetNamePrefix": {
+            "type": "string",
+            "defaultValue": "vnet-"
+        },
+        "appGatewayNamePrefix": {
+            "type": "string",
+            "defaultValue": "appgateway-"
+        },
+        "trafficManagerNamePrefix": {
+            "type": "string",
+            "defaultValue": "trafficmngr-"
+        }
+    },
+    "variables": {
+        "vnet": {
+            "addressPrefix": "10.9.1.0/24",
+
+            "appgatewaysubnet": {
+                "subnetName": "appGwSubnet",
+                "addressPrefix": "10.9.1.0/25"
+            }
+        },
+        "appgatewayconfig": {
+            "publicip": {
+                "name": "[concat('publicip-', uniqueString(resourceGroup().id))]",
+                "dnsSettings": {
+                    "domainNameLabel": "[concat('appgw-', uniqueString(resourceGroup().id))]"
+                }
+            },
+            "frontendIPConfigurations": {
+                "name": "appGwPublicFrontendIP"
+            },
+            "gatewayIPConfigurations": {
+                "name": "appGwIpConfiguration"
+            },
+            "frontendPorts": {
+                "name": "appGwFrontendPort80"
+            },
+            "backendAddressPools": {
+                "name": "apimBackendPool"
+            },
+            "requestRoutingRules": {
+                "name": "routingRule"
+            },
+            "probes": {
+                "name": "apimHealthProbes"
+            },
+            "backendHttpSettingsCollection": {
+                "name": "httpRouting"
+            },
+            "httpListeners": {
+                "name": "apimListener"
+            }
+        }
+    },
+    "resources": [
+        {
+            "name": "[concat(parameters('apiManagementPrefix'), uniqueString(resourceGroup().id))]",
+            "type": "Microsoft.ApiManagement/service",
+            "apiVersion": "2019-01-01",
+            "location": "[resourceGroup().location]",
+            "sku": {
+                "name": "Developer"
+            },
+            "properties": {
+                "publisherEmail": "daniag@contoso.com",
+                "publisherName": "Contoso"
+            }
+        },
+        {
+            "name": "[concat(parameters('vnetNamePrefix'), uniqueString(resourceGroup().id))]",
+            "type": "Microsoft.Network/virtualNetworks",
+            "apiVersion": "2019-04-01",
+            "location": "[resourceGroup().location]",
+            "properties": {
+                "addressSpace": {
+                    "addressPrefixes": [
+                        "[variables('vnet').addressPrefix]"
+                    ]
+                },
+                "subnets": [
+                    {
+                        "name": "[variables('vnet').appgatewaysubnet.subnetName]",
+                        "properties": {
+                            "addressPrefix": "[variables('vnet').appgatewaysubnet.addressPrefix]"
+                        }
+                    }
+                ]
+            }
+        },
+        {
+            "name": "[variables('appgatewayconfig').publicip.name]",
+            "type": "Microsoft.Network/publicIPAddresses",
+            "apiVersion": "2019-09-01",
+            "location": "[resourceGroup().location]",
+            "sku": {
+                "name": "Standard"
+            },
+            "properties": {
+                "publicIPAllocationMethod": "Static",
+                "publicIPAddressVersion": "IPv4",
+                "idleTimeoutInMinutes": 4,
+                "dnsSettings": {
+                    "domainNameLabel": "[variables('appgatewayconfig').publicip.dnsSettings.domainNameLabel]"
+                }
+            }
+        },
+        {
+            "dependsOn": [
+                "[concat('Microsoft.Network/virtualNetworks/', concat(parameters('vnetNamePrefix'), uniqueString(resourceGroup().id)))]",
+                "[concat('Microsoft.Network/publicIPAddresses/', variables('appgatewayconfig').publicip.name)]",
+                "[concat('Microsoft.ApiManagement/service/', concat(parameters('apiManagementPrefix'), uniqueString(resourceGroup().id)))]"
+            ],
+            "name": "[concat(parameters('appGatewayNamePrefix'), uniqueString(resourceGroup().id))]",
+            "type": "Microsoft.Network/applicationGateways",
+            "apiVersion": "2019-04-01",
+            "location": "[resourceGroup().location]",
+            "properties": {
+                "sku": {
+                    "name": "Standard_v2",
+                    "tier": "Standard_v2",
+                    "capacity": 1
+                },
+                "frontendIPConfigurations": [
+                    {
+                        "name": "[variables('appgatewayconfig').frontendIPConfigurations.name]",
+                        "properties": {
+                            "publicIPAddress": {
+                                "id": "[resourceId('Microsoft.Network/publicIPAddresses', variables('appgatewayconfig').publicip.name)]"
+                            }
+                        }
+                    }
+                ],
+                "gatewayIPConfigurations": [
+                    {
+                        "name": "[variables('appgatewayconfig').gatewayIPConfigurations.name]",
+                        "properties": {
+                            "subnet": {
+                                "id": "[resourceId('Microsoft.Network/virtualNetworks/subnets', concat(parameters('vnetNamePrefix'), uniqueString(resourceGroup().id)), variables('vnet').appgatewaysubnet.subnetName)]"
+                            }
+                        }
+                    }
+                ],
+                "frontendPorts": [
+                    {
+                        "name": "[variables('appgatewayconfig').frontendPorts.name]",
+                        "properties": {
+                            "port": 80
+                        }
+                    }
+                ],
+                "backendAddressPools": [
+                    {
+                        "name": "[variables('appgatewayconfig').backendAddressPools.name]",
+                        "properties": {
+                            "backendAddresses": [
+                                {
+                                    "ipAddress": "[reference(concat(parameters('apiManagementPrefix'), uniqueString(resourceGroup().id))).publicIPAddresses[0]]"
+                                }
+                            ]
+                        }
+                    }
+                ],
+                "httpListeners": [
+                    {
+                        "name": "[variables('appgatewayconfig').httpListeners.name]",
+                        "properties": {
+                            "frontendIPConfiguration": {
+                                "id": "[concat(resourceId('Microsoft.Network/applicationGateways', concat(parameters('appGatewayNamePrefix'), uniqueString(resourceGroup().id))), '/frontendIPConfigurations/', variables('appgatewayconfig').frontendIPConfigurations.name)]"
+                            },
+                            "frontendPort": {
+                                "id": "[concat(resourceId('Microsoft.Network/applicationGateways', concat(parameters('appGatewayNamePrefix'), uniqueString(resourceGroup().id))), '/frontendPorts/', variables('appgatewayconfig').frontendPorts.name)]"
+                            },
+                            "protocol": "Http"
+                        }
+                    }
+                ],
+                "backendHttpSettingsCollection": [
+                    {
+                        "name": "[variables('appgatewayconfig').backendHttpSettingsCollection.name]",
+                        "properties": {
+                            "port": 80,
+                            "protocol": "Http",
+                            "cookieBasedAffinity": "Disabled",
+                            "hostName": "[concat(concat(parameters('apiManagementPrefix'), uniqueString(resourceGroup().id)), '.azure-api.net')]",
+                            "requestTimeout": 20,
+                            "probe": {
+                                "id": "[concat(resourceId('Microsoft.Network/applicationGateways', concat(parameters('appGatewayNamePrefix'), uniqueString(resourceGroup().id))), '/probes/', variables('appgatewayconfig').probes.name)]"
+                            }
+                        }
+                    }
+                ],
+                "requestRoutingRules": [
+                    {
+                        "name": "[variables('appgatewayconfig').requestRoutingRules.name]",
+                        "properties": {
+                            "backendAddressPool": {
+                                "id": "[concat(resourceId('Microsoft.Network/applicationGateways', concat(parameters('appGatewayNamePrefix'), uniqueString(resourceGroup().id))), '/backendAddressPools/', variables('appgatewayconfig').backendAddressPools.name)]"
+                            },
+                            "httpListener": {
+                                "id": "[concat(resourceId('Microsoft.Network/applicationGateways', concat(parameters('appGatewayNamePrefix'), uniqueString(resourceGroup().id))), '/httpListeners/', variables('appgatewayconfig').httpListeners.name)]"
+                            },
+                            "backendHttpSettings": {
+                                "id": "[concat(resourceId('Microsoft.Network/applicationGateways', concat(parameters('appGatewayNamePrefix'), uniqueString(resourceGroup().id))), '/backendHttpSettingsCollection/', variables('appgatewayconfig').backendHttpSettingsCollection.name)]"
+                            }
+                        }
+                    }
+                ],
+                "probes": [
+                    {
+                        "name": "[variables('appgatewayconfig').probes.name]",
+                        "properties": {
+                            "protocol": "Http",
+                            "host": "[concat(concat(parameters('apiManagementPrefix'), uniqueString(resourceGroup().id)), '.azure-api.net')]",
+                            "path": "/status-0123456789abcdef",
+                            "interval": 30,
+                            "timeout": 30,
+                            "unhealthyThreshold": 3,
+                            "pickHostNameFromBackendHttpSettings": false,
+                            "minServers": 0,
+                            "match": {
+                                "statusCodes": [
+                                    "200-399"
+                                ]
+                            },
+                            "port": 80
+                        }
+                    }
+                ]
+            }
+        },
+        {
+            "dependsOn": [
+                "[concat('Microsoft.Network/applicationGateways/', concat(parameters('appGatewayNamePrefix'), uniqueString(resourceGroup().id)))]"
+            ],
+            "name": "[concat(parameters('trafficManagerNamePrefix'), uniqueString(resourceGroup().id))]",
+            "type": "Microsoft.Network/trafficmanagerprofiles",
+            "apiVersion": "2018-04-01",
+            "location": "global",
+            "properties": {
+                "trafficRoutingMethod": "Performance",
+                "dnsConfig": {
+                    "relativeName": "[concat(parameters('trafficManagerNamePrefix'), uniqueString(resourceGroup().id))]",
+                    "ttl": 5
+                },
+                "monitorConfig": {
+                    "profileMonitorStatus": "Online",
+                    "protocol": "HTTP",
+                    "port": 80,
+                    "path": "/status-0123456789abcdef",
+                    "intervalInSeconds": 30,
+                    "timeoutInSeconds": 10,
+                    "toleratedNumberOfFailures": 3
+                },
+                "endpoints": [
+                    {
+                        "id": "[concat(resourceId('Microsoft.Network/trafficManagerProfiles', concat(parameters('trafficManagerNamePrefix'), uniqueString(resourceGroup().id))), '/externalEndpoints/', 'appgateway-endpoint')]",
+                        "name": "appgateway-endpoint",
+                        "type": "Microsoft.Network/trafficManagerProfiles/externalEndpoints",
+                        "properties": {
+                            "target": "[reference(variables('appgatewayconfig').publicip.name).dnsSettings.fqdn]", 
+                            "endpointStatus": "Enabled",
+                            "endpointLocation": "[resourceGroup().location]"
+                        }
+                    }
+                ]
+            }
+        }
+    ],
+    "outputs": {
+    }
+}
