@@ -11,4 +11,4 @@ Deploying the azuredeploy.json template file provisions the following Azure reso
 
 ## Considerations
 * Be mindful of the public IP's SKU and its compatibility with App Gateway's SKU
- - Deploying public IP with type *Basic* and allocation method *Dynamic* along with App Gateway's SKU *Standard_v2* throws a compatibility error during deployment
+  - Deploying public IP with type *Basic* and allocation method *Dynamic* along with App Gateway's SKU *Standard_v2* throws a compatibility error during deployment
