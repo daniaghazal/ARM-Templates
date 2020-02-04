@@ -18,7 +18,7 @@ az login
 ```
 az group create --name <YOUR-RESOURCE-GROUP-NAME> --location <CHOOSE-RESOURCE-GROUP-LOCATION>
 ```
-3. Make sure you are in the working directory that holds your template and paramter files
+3. Make sure you are in the working directory that holds your template and parameter files.
 4. Simply run the following command to deploy all the resources defined in both the template and parameter files:
 ```
 az group deployment create --resource-group <YOUR-RESOURCE-GROUP-NAME> --template-file azuredeploy.json --parameters azuredeploy.parameters.json
