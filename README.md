@@ -9,7 +9,7 @@ Deploying the azuredeploy.json template file provisions the following Azure reso
    - *Public IP* - entry point for App Gateway
 3. **Traffic Manager**
 
-# Steps to deploy
+## Steps to deploy
 1. Open your command prompt/bash shell and connect to Azure:
 ```
 az login
@@ -23,7 +23,7 @@ az group create --name <YOUR-RESOURCE-GROUP-NAME> --location <CHOOSE-RESOURCE-GR
 ```
 az group deployment create --resource-group <YOUR-RESOURCE-GROUP-NAME> --template-file azuredeploy.json --parameters azuredeploy.parameters.json
 ```
-   - **Note:** if you don't specify the --parameters option, the template will still deploy successfully. This is because the template file defines default values for the required user input.
+   - **Note:** if you don't specify the **--parameters** option, the template will still deploy successfully. This is because the template file defines default values for the required user input.
 
 ## Considerations
 * Be mindful of the public IP's SKU and its compatibility with App Gateway's SKU
